@@ -17,8 +17,12 @@ title = gd2-d02-template
 
 [sprite]
 subpixels = 0
+max_count = 512
 
 [graphics]
 default_texture_min_filter = nearest
 default_texture_mag_filter = nearest
+
+[physics]
+max_collision_object_count = 256
 

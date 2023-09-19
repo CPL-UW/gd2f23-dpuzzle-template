@@ -5,12 +5,12 @@ function init(self)
 	-- Learn more: https://defold.com/manuals/script/
 	-- Remove this function if not needed
 	msg.post(".", "acquire_input_focus")
+	self.boxWidth = X_COLS
+	self.boxHeight = Y_ROWS
+	self.matrix = tetris_random_board(self.boxWidth,self.boxHeight) -- make_matrix(self.boxWidth,self.boxHeight,false)
+	self.piece = tetris_random_piece(self.matrix)
 	self.spots = {}
-	self.boxWidth = 5
-	self.boxHeight = 8
-	self.matrix = tetris_random_board() -- make_matrix(self.boxWidth,self.boxHeight,false)
-	self.piece = tetris_random_piece()
-	self.spots = {}
+	make_board(self)
 end
 
 function make_spot(self, i, j)
@@ -68,38 +68,89 @@ function move_random_spot(self)
 	go.set_position(pos,id)
 end
 
-function draw_board(self)
-	go.delete(self.spots)
-	self.spots = {}
+function make_board(self)
+	self.board = make_matrix(self.boxWidth, self.boxHeight, false)
 	for j=1,#self.matrix[1] do
 		for i=1,#self.matrix do
-			if (self.matrix[i][j]) then
-				local id = make_spot(self, i, j)
-				table.insert(self.spots, id)
-			end
+			local id = make_spot(self, i, j)
+			self.board[i][j] = id
 		end
 	end
-	for n=1,#self.piece do
-		local pxy = self.piece[n]
-		local id = make_spot(self, pxy.x, pxy.y)
-		table.insert(self.spots, id)
-		msg.post(id, "play_animation", {id = hash("box_white")})
+	self.walls = {}
+	for j=1,#self.matrix[1] do
+		local leftid = make_spot(self, 0, j)
+		local rightid = make_spot(self, #self.matrix + 1, j)
+		table.insert(self.walls, leftid)
+		table.insert(self.walls, rightid)
+		msg.post(leftid, "play_animation", {id = hash("box_x")})
+		msg.post(rightid, "play_animation", {id = hash("box_x")})
 	end
 end
 
+-- turn spots visible, invisible, or different animation, depending.
+function update_board(self)
+	for j=1,#self.matrix[1] do
+		for i=1,#self.matrix do
+			local cell = self.board[i][j]
+			if (self.matrix[i][j]) then
+				msg.post(cell, "enable")
+				msg.post(cell, "play_animation", {id = hash("box_black")})
+			else
+				msg.post(cell, "disable")
+			end
+		end
+	end
+	if self.piece then
+		for n=1,#self.piece do
+			local pxy = self.piece[n]
+			local cell = self.board[pxy.x][pxy.y]
+			msg.post(cell, "enable")
+			msg.post(cell, "play_animation", {id = hash("box_white")})
+		end
+	end
+end
+
+-- function draw_board(self)
+-- 	go.delete(self.spots)
+-- 	self.spots = {}
+-- 	for j=1,#self.matrix[1] do
+-- 		for i=1,#self.matrix do
+-- 			if (self.matrix[i][j]) then
+-- 				local id = make_spot(self, i, j)
+-- 				table.insert(self.spots, id)
+-- 			end
+-- 		end
+-- 	end
+-- 	if self.piece then
+-- 		for n=1,#self.piece do
+-- 			local pxy = self.piece[n]
+-- 			local id = make_spot(self, pxy.x, pxy.y)
+-- 			table.insert(self.spots, id)
+-- 			msg.post(id, "play_animation", {id = hash("box_white")})
+-- 		end
+-- 	end
+-- 	for j=1,#self.matrix[1] do
+-- 		local leftid = make_spot(self, 0, j)
+-- 		local rightid = make_spot(self, #self.matrix + 1, j)
+-- 		table.insert(self.spots, leftid)
+-- 		table.insert(self.spots, rightid)
+-- 		msg.post(leftid, "play_animation", {id = hash("box_x")})
+-- 		msg.post(rightid, "play_animation", {id = hash("box_x")})
+-- 	end
+-- end
+
 function do_tick(self)
-	if not self.piece then
-		self.piece = tetris_random_piece()
+	if tetris_kill_lines(self.matrix) then
+		print("killing a line")
+	elseif not self.piece then
+		self.piece = tetris_random_piece(self.matrix)
+	elseif not tetris_move_piece(self.matrix,self.piece,0,-1) then
+		if self.piece then
+			print("place piece")
+			tetris_place_piece(self.matrix,self.piece)
+			self.piece = false
+		end
 	end
-	if tetris_tick(self.matrix,self.piece) then
-		print("tick")
-	elseif self.piece then
-		print("place piece")
-		tetris_place_piece(self.matrix,self.piece)
-		self.piece = false
-	end
-		
-	draw_board(self)
 end
 
 function on_input(self, action_id, action)
@@ -112,22 +163,21 @@ function on_input(self, action_id, action)
 	-- be received regardless of where on the screen it happened.
 	-- Learn more: https://defold.com/manuals/input/
 	-- Remove this function if not needed
-	if action_id == hash("right") then
+	if action.released then
+		if action_id == hash("left") then
+			tetris_move_piece(self.matrix,self.piece,-1,0)
+		elseif action_id == hash("right") then
+			tetris_move_piece(self.matrix,self.piece,1,0)
+		elseif action_id == hash("down") then
+			print(table2string(self.spots))
+		elseif action_id == hash("up") then
+			tetris_rotate_piece(self.matrix, self.piece)
+		end
 		do_tick(self)
-	-- elseif action_id == hash("left") then
-	-- 	tetris_tick(self.matrix,self.currentPiece)
-	-- elseif action_id == hash("up") then
-	-- 	tetris_place_piece(self.matrix, self.currentPiece)
-	-- 	self.currentPiece = tetris_random_piece()
+		update_board(self)
+		-- draw_board(self)
 	end
 
-	-- 	if (#self.spots < 5) then
-	-- 		local id = make_new_random_spot(self)
-	-- 		table.insert(self.spots, id)
-	-- 	else
-	-- 		move_random_spot(self)			
-	-- 	end
-	-- end
 end
 
 function on_reload(self)

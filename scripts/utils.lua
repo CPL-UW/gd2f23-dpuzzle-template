@@ -3,9 +3,18 @@
 -- require "my_directory.my_file"
 -- in any script using the functions.
 
-function tetris_random_board()
-	local width = 5
-	local height = 9
+X_COLS = 7
+X_WIDTH = 30
+Y_ROWS = 18
+Y_HEIGHT = 30
+
+X_BUFFER = (960 / 2) - (X_COLS * X_WIDTH / 2)
+Y_BUFFER = 50
+
+
+function tetris_random_board(w,h)
+	local width = w
+	local height = h
 	local matrix = make_matrix(width, height, false)
 	for i = 1, width do
 		for j = 1,3 do
@@ -17,10 +26,64 @@ function tetris_random_board()
 	return matrix
 end
 
-function tetris_random_piece()
+function tetris_rotate_piece(matrix,piece)
+	if not matrix then
+		print("tetris_move_piece: no matrix?") 
+		return false
+	elseif not piece then 
+		print("tetris_move_piece: no piece?") 
+		return false
+	end 
+	px = piece[2].x
+	py = piece[2].y
+-- 	x2 = (y1 + px - py)
+-- 	y2 = (px + py - x1 - q)
+	local newPiece = table_clone(piece)
+	for i = 1, #piece do
+		newPiece[i].x = piece[i].y + px - py
+		newPiece[i].y = px + py - piece[i].x - 1
+		if (not tetris_is_open_space(matrix, newPiece[i].x, newPiece[i].y)) then
+			print("failed rotate")
+			return false
+		end
+	end
+	for i = 1, #piece do
+		piece[i].x = newPiece[i].x
+		piece[i].y = newPiece[i].y
+	end
+	return true
+end
+
+
+function tetris_move_piece(matrix,piece,dx,dy)
+	if not matrix then
+		print("tetris_move_piece: no matrix?") 
+		return false
+	elseif not piece then 
+		print("tetris_move_piece: no piece?") 
+		return false
+	end 
+	
+	for i = 1, #piece do
+		mi = piece[i].x + dx
+		mj = piece[i].y + dy
+		if (not tetris_is_open_space(matrix, mi, mj)) then
+			return false
+		end
+	end
+	for i = 1, #piece do
+		piece[i].x = piece[i].x + dx
+		piece[i].y = piece[i].y + dy
+	end
+	return true
+end
+
+function tetris_random_piece(matrix)
 	local output = {}
-	for i = 1,4 do
-		local piece = {x = i, y = 6}
+	local mi = math.floor(#matrix / 2)
+	local mj = #matrix[1]
+	for i = mi,mi+3 do
+		local piece = {x = i, y = mj}
 		table.insert(output, piece)
 	end
 	return output
@@ -41,32 +104,18 @@ end
 -- end
 -- 
 function tetris_is_open_space(matrix, i, j)
-	return (not matrix[i][j] and tetris_is_valid_space(matrix, i, j))
-end
-	
-function tetris_is_valid_space(matrix, i, j)
-	return ((i <= #matrix) and (i >= 1) and (j >= 1) and (j <= #matrix[1]))
+	return (tetris_is_valid_space(matrix, i, j) and not matrix[i][j])
 end
 
-function tetris_tick(matrix, piece)
-	if not matrix then
-		print("tetris_tick: no matrix?") 
-		return false
-	elseif not piece then 
-		print("tetris_tick: no piece?") 
-		return false
-	end 
-	for i = 1, #piece do
-		mi = piece[i].x
-		mj = piece[i].y - 1
-		if (not tetris_is_open_space(matrix, mi, mj)) then
-			return false
-		end
-	end
-	for i = 1, #piece do
-		piece[i].y = piece[i].y - 1
+function tetris_is_line_full(matrix, lineNo)
+	for i=1,#matrix do
+		if tetris_is_open_space(matrix, i, lineNo) then return false end
 	end
 	return true
+end
+
+function tetris_is_valid_space(matrix, i, j)
+	return ((i <= #matrix) and (i >= 1) and (j >= 1) and (j <= #matrix[1]))
 end
 
 function tetris_place_piece(matrix, piece)
@@ -105,7 +154,7 @@ function tetris_to_string(matrix)
 end
 
 function tetris_line_erase(matrix,lineNo)
-	for j = lineNo,#matrix[1] do
+	for j = lineNo,(#matrix[1] - 1) do
 		for i = 1, #matrix do
 			matrix[i][j] = matrix[i][j + 1]
 		end
@@ -115,10 +164,17 @@ function tetris_line_erase(matrix,lineNo)
 	end
 end
 
-X_WIDTH = 50
-X_BUFFER = 50
-Y_HEIGHT = 50
-Y_BUFFER = 50
+function tetris_kill_lines(matrix)
+	for j=#matrix[1],1,-1 do
+		if tetris_is_line_full(matrix, j) then
+			print("full line: " .. j)
+			tetris_line_erase(matrix, j)
+			return true
+		end
+	end
+	return false
+end
+
 
 function i2x(i)
 	return (i - 1) * X_WIDTH + X_BUFFER
@@ -127,24 +183,6 @@ end
 function j2y(j)
 	return (j - 1) * Y_HEIGHT + Y_BUFFER
 end
-
--- function table_equals( a, b )
--- 	if type(a) ~= type(b) then return false end
--- 	if type(a) ~= "table" then
--- 		return tostring(a) == tostring(b)
--- 	end
--- 	if #a ~= #b then return false end
--- 	if #a == 0 then return true end
--- 	for k,v in pairs(a) do
--- 		print("a: " .. k .. table2string(v))
--- 		if not table_equals(a[k], b[k]) then return false end
--- 	end
--- 	for k,v in pairs(b) do
--- 		print("b: " .. k .. table2string(v))
--- 		if not table_equals(a[k], b[k]) then return false end
--- 	end
--- 	return true
--- end
 
 function table_equals(a,b)
 	return table2string(a) == table2string(b)
